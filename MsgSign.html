@@ -2,310 +2,332 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
     <title>CFCA hncx CryptoKit Demo</title>
-    <!--<object id="CryptoAgent" codebase="CryptoKit.hncx.x86.cab" classid="clsid:43783E7D-B4E1-49EE-B39E-856DD838061F"></object>-->
+    <script type="text/javascript" src="nmCryptoKit.js"></script>
     <script language="javascript" type="text/javascript">
 
-        var CryptoAgent = "";
-        // Create ActiveX object according to the platform
-        function OnLoad() {
-            try {
-                var eDiv = document.createElement("div");
-                if (navigator.appName.indexOf("Internet") >= 0 || navigator.appVersion.indexOf("Trident") >= 0) {
-                    if (window.navigator.cpuClass == "x86" || window.navigator.cpuClass == "win32" || window.navigator.cpuClass == "arm") {
-                        eDiv.innerHTML = "<object id=\"CryptoAgent\" codebase=\"CryptoKit.hncx.x86.cab\" classid=\"clsid:43783E7D-B4E1-49EE-B39E-856DD838061F\" ></object>";
-                    }
-                    else {
-                        eDiv.innerHTML = "<object id=\"CryptoAgent\" codebase=\"CryptoKit.hncx.x64.cab\" classid=\"clsid:A4BE30BE-A203-4523-A265-73554AE96CA1\" ></object>";
-                    }
-                }
-                else {
-                    alert("仅支持IE浏览器");
-                }
-                document.body.appendChild(eDiv);
-            }
-            catch (e) {
-                alert(e);
-                return;
-            }
-            CryptoAgent = document.getElementById("CryptoAgent");
+    function BrowserInfo() {
+        var res = {
+            name: "",
+            version: "",
+        };
+        var reg;
+        var userAgent = self.navigator.userAgent;
+
+        if (reg = /edge\/([\d\.]+)/i.exec(userAgent)) {
+            res.name = "Edge";
+            res.version = reg[1];
         }
+        else if (reg = /edg\/([\d\.]+)/i.exec(userAgent)) {
+            res.name = "Edge(Chromium)";
+            res.version = reg[1];
+        }
+        else if (/msie/i.test(userAgent)) {
+            res.name = "Internet Explorer";
+            res.version = /msie ([\d\.]+)/i.exec(userAgent)[1];
+        }
+        else if (/Trident/i.test(userAgent)) {
+            res.name = "Internet Explorer";
+            res.version = /rv:([\d\.]+)/i.exec(userAgent)[1];
+        }
+        else if (/chrome/i.test(userAgent)) {
+            res.name = "Chrome";
+            res.version = /chrome\/([\d\.]+)/i.exec(userAgent)[1];
+        }
+        else if (/safari/i.test(userAgent)) {
+            res.name = "Safari";
+            res.version = /version\/([\d\.]+)/i.exec(userAgent)[1];
+        }
+        else if (/firefox/i.test(userAgent)) {
+            res.name = "Firefox";
+            res.version = /firefox\/([\d\.]+)/i.exec(userAgent)[1];
+        }
+        return res;
+    }
 
-        function SelectObjctById(id) {
+    var CryptoKit;
 
-            var obj;
-            if (document.getElementById) {
-                obj = document.getElementById(id);
-                //alert("ID");
-            }
-            else if (document.all) {
-                obj = document.all(id);
-                //alert("ALL");
+    function LoadObj() {
+        try {
+            var browser = BrowserInfo();
+            if (("Edge(Chromium)" == browser.name) ||
+                ("Chrome" == browser.name && parseInt(browser.version) > 41) ||
+                ("Firefox" == browser.name && parseInt(browser.version) > 52)) {
+
+                CryptoKit = new nmCryptokit(browser.name);
+
+                CryptoKit.init()
+                .then(function () {
+                    EnableButton(true);
+                })
+                .catch(function (response) {
+                    alert(response.result);
+                    installExtension();
+                });
             }
             else {
-                alert("The Internet Browser does't support Document all or Document getElementById");
+                alert("Unsupported browser!");
             }
-            return obj;
         }
+        catch (e) {
+            alert(e);
+            return;
+        }
+    }
+
+    function installExtension(){
+        var browser = BrowserInfo();
+        if ("Firefox" == browser.name) {
+            var extensionURL = "";
+            var xpi = { 'CryptoKit for Firefox': extensionURL };
+
+            InstallTrigger.install(xpi);
+        }
+        else if ("Chrome" == browser.name) {
+            alert("Please install extension for Chrome!");
+        }
+        else {
+            alert("Unsupported browser!");
+        }
+    }
+
+    function OnLoad() {
+        // Waiting for extension loading
+        document.getElementById("CryptoKitExtension").style.display = "none";
+        setTimeout('LoadObj()', 500);
+    }
+
+    function OnUnLoad() {
+        try {
+            CryptoKit.uninit().then(function () {
+                EnableButton(false);
+            });
+        }
+        catch (e) {
+            alert(e);
+            return;
+        }
+    }
 
 
-        function show() {
-            // Select certificate
-            var eleCertificate = document.getElementsByName("Certificate");
-            var indexnumber = 0;
-            for (i = 0; i < eleCertificate.length; i++) {
-                if (eleCertificate[i].checked) {
-                    indexnumber = i;
-                    break;
-                }
+    // Select certificate
+    function OnClickSelectCertificate() {
+        document.getElementById("SelectCertResult").value = "";
+
+        var subjectDNFilter = document.getElementById("SubjectDNFilter").value;
+        var issuerDNFilter = document.getElementById("IssuerDNFilter").value;
+        var serialNumFilter = document.getElementById("SerialNumFilter").value;
+        var cspList = document.getElementById("SM2CSPFilter").value;
+
+        CryptoKit.selectCertificate(subjectDNFilter, issuerDNFilter, serialNumFilter, cspList)
+        .then(function (response) {
+            document.getElementById("SelectCertResult").value = response.result;
+        })
+        .catch(function (response) {
+            ShowErrorInfo(response);
+        });
+    }
+
+    function OnClickGetCertInfo() {
+        document.getElementById("CertInfoContent").value = "";
+
+        var InfoTypeID = GetSelectedItemValue("InfoTypeID");
+
+        CryptoKit.getSignCertInfo(InfoTypeID)
+        .then(function (response) {
+            document.getElementById("CertInfoContent").value = response.result;
+        })
+        .catch(function (response) {
+            ShowErrorInfo(response);
+        });
+    }
+
+    function OnClickSign() {
+        document.getElementById("Signature").value = "";
+   
+        var selectedAlg = GetSelectedItemValue("algorithm");
+        var source = document.getElementById("SourceData").value;
+        var signType = GetSelectedItemValue("SignType");
+
+        var selectedIndex = 0;
+        selectedIndex = GetSelectedItemIndex("Certificate")
+
+        if (selectedIndex == 0) {
+
+            if ("Attach" == signType) {
+                // PKCS#7 Attach
+                CryptoKit.signMsgPKCS7(source, selectedAlg, true)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
             }
-            if (0 == indexnumber) {
-                document.getElementById("no1").style.display = "block";
-                document.getElementById("no2").style.display = "none";
+            else if ("Detach" == signType) {
+                // PKCS#7 Detach
+                CryptoKit.signMsgPKCS7(source, selectedAlg, false)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
             }
             else {
-                document.getElementById("no1").style.display = "none";
-                document.getElementById("no2").style.display = "block";
+                // PKCS#1
+                CryptoKit.signMsgPKCS1(source, selectedAlg)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
             }
         }
+        else {
+            var filename = "";
+            var password = "";
+            //file password source
+            if (document.getElementById("signcertfilepath").value.length > 0) {
+                filename = document.getElementById("signcertfilepath").value;
+            }
+            if (document.getElementById("signcertfilepassword").value.length > 0) {
+                password = document.getElementById("signcertfilepassword").value;
+            }
+            var certificatetype = GetSelectedItemValue("certtype");
 
+            if ("Attach" == signType) {
+                // PKCS#7 Attach
+                CryptoKit.signMsgPKCS7_BySoftCert(filename, password, certificatetype, source, selectedAlg, true)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
+            }
+            else if ("Detach" == signType) {
+                // PKCS#7 Detach
+                CryptoKit.signMsgPKCS7_BySoftCert(filename, password, certificatetype, source, selectedAlg, false)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
+            }
+            else {
+                // PKCS#1
+                CryptoKit.signMsgPKCS1_BySoftCert(filename, password, certificatetype, source, selectedAlg)
+                    .then(function (response) {
+                        document.getElementById("Signature").value = response.result;
+                    })
+                    .catch(function (response) {
+                        ShowErrorInfo(response);
+                    });
+            }
+        }
+    }
+
+
+    function OnClickVerifyPKCS7() {
+        var signature = document.getElementById("Signature").value;
+        var signaturetype = GetSelectedItemValue("signalgorithm");
+
+        CryptoKit.verifyMsgSignaturePKCS7Attached(signature, signaturetype)
+            .then(function (response) {
+                alert("验签结果：" + response.result);
+            })
+            .catch(function (response) {
+                ShowErrorInfo(response);
+            });
+    }
+
+    function OnClickVerifyPKCS7Detached() {
+        var signature = document.getElementById("Signature").value;
+        var signaturetype = GetSelectedItemValue("signalgorithm");
+        var source = document.getElementById("SourceData").value;
+
+        CryptoKit.verifyMsgSignaturePKCS7Detached(signature, signaturetype, source)
+            .then(function (response) {
+                alert("验签结果：" + response.result);
+            })
+            .catch(function (response) {
+                ShowErrorInfo(response);
+            });
+    }
+
+    function VerifyPKCS1OnClick() {
+        var signatureAlg = "";
+        var bWithZValue = true;
+        var signature = "";
+        var source = "";
+        var base64cert = "";
+        var bResult = false;
+        var hashAlg = "";
+
+        signatureAlg = GetSelectedItemValue("signalgorithm");
+        hashAlg = GetSelectedItemValue("algorithm");
+
+        signature = document.getElementById("Signature").value;
+        source = document.getElementById("SourceData").value;
+        base64cert = document.getElementById("Base64Cert").value;
+
+        CryptoKit.verifyMsgSignaturePKCS1(signature, signatureAlg, source, hashAlg, base64cert)
+            .then(function (response) {
+                alert("验签结果：" + response.result);
+            })
+            .catch(function (response) {
+                ShowErrorInfo(response);
+            });
+    }
+
+
+    function ShowErrorInfo(response) {
+        if(null == response){
+            alert("Extension has been remove!");
+        }
+        else if(1 == response.errorcode) { // connection error
+            alert(response.result);
+        }
+        else { // host error
+            CryptoKit.getLastErrorDesc()
+            .then(function (response) {
+                alert(response.result);
+            });
+        }
+    }
+
+
+    function show() {
         // Select certificate
-        function SelectCertificateOnClick() {
-            try {
-                document.getElementById("SelectCertResult").value = "";
-
-                var subjectDNFilter = "";
-                var issuerDNFilter = "";
-                var serialNumFilter = "";
-                var bSelectCertResult = "";
-                subjectDNFilter = document.getElementById("SubjectDNFilter").value;
-                issuerDNFilter = document.getElementById("IssuerDNFilter").value;
-                serialNumFilter = document.getElementById("SerialNumFilter").value;
-                var cspList = document.getElementById("SM2CSPFilter").value;
-
-                bSelectCertResult = CryptoAgent.SelectCertificate(subjectDNFilter, issuerDNFilter, serialNumFilter, cspList);
-                // Opera浏览器，NPAPI函数执行结果为false时，不能触发异常，需要自己判断返回值。
-                if (!bSelectCertResult) {
-                    var errorDesc = CryptoAgent.GetLastErrorDesc();
-                    alert(errorDesc);
-                    return;
-                }
-                document.getElementById("SelectCertResult").value = bSelectCertResult;
-            }
-
-            catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
+        var eleCertificate = document.getElementsByName("Certificate");
+        var indexnumber = 0;
+        for (i = 0; i < eleCertificate.length; i++) {
+            if (eleCertificate[i].checked) {
+                indexnumber = i;
+                break;
             }
         }
+        if (0 == indexnumber) {
+            document.getElementById("no1").style.display = "block";
+            document.getElementById("no2").style.display = "none";
+        }
+        else {
+            document.getElementById("no1").style.display = "none";
+            document.getElementById("no2").style.display = "block";
+        }
+    }
 
-        // Get certificate information
-        function GetCertInfoOnClick() {
-            try {
-                var InfoTypeID = "";
-                var InfoContent = "";
 
-                document.getElementById("CertInfoContent").value = "";
-
-                // certificate information identifier
-                InfoTypeID = GetSelectedItemValue("InfoTypeID");
-
-                InfoContent = CryptoAgent.GetSignCertInfo(InfoTypeID);
-                // Opera浏览器，NPAPI函数执行结果为false时，不能触发异常，需要自己判断返回值。
-                if (!InfoContent) {
-                    var errorDesc = CryptoAgent.GetLastErrorDesc();
-                    alert(errorDesc);
-                    return;
-                }
-                document.getElementById("CertInfoContent").value = InfoContent;
-            } catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
+    function GetSelectedItemValue(itemName) {
+        var ele = document.getElementsByName(itemName);
+        for (i = 0; i < ele.length; i++) {
+            if (ele[i].checked) {
+                return ele[i].value;
             }
         }
-
-        // Sign message
-        function SignOnClick() {
-            try {
-                var selectedIndex = 0;
-                selectedIndex = GetSelectedItemIndex("Certificate")
-                if (selectedIndex == 0) {
-                    var source = "";
-                    var signature = "";
-                    var signType = "";
-                    var selectedAlg = GetSelectedItemValue("algorithm");
-
-                    document.getElementById("Signature").value = "";
-
-                    // source
-                    source = document.getElementById("SourceData").value;
-
-                    // sign type
-                    // certificate information identifier
-                    signType = GetSelectedItemValue("SignType");
-
-                    if ("Attach" == signType) {
-                        // PKCS#7 Attach
-                        signature = CryptoAgent.SignMsgPKCS7(source, selectedAlg, true);
-                    }
-                    else if ("Detach" == signType) {
-                        // PKCS#7 Detach
-                        signature = CryptoAgent.SignMsgPKCS7(source, selectedAlg, false);
-                    }
-                    else {
-                        // PKCS#1
-                        signature = CryptoAgent.SignMsgPKCS1(source, selectedAlg);
-                    }
-                    if (!signature) {
-                        var errorDesc = CryptoAgent.GetLastErrorDesc();
-                        alert(errorDesc);
-                        return;
-                    }
-                    document.getElementById("Signature").value = signature;
-                }
-                else {
-                    var filename = "";
-                    var password = "";
-                    var source = "";
-                    var signature = "";
-
-                    var signType = "";
-                    var selectedAlg = GetSelectedItemValue("algorithm");
-                    var certificatetype = GetSelectedItemValue("certtype");
-
-
-                    document.getElementById("Signature").value = "";
-
-                    //file password source
-                    if (document.getElementById("signcertfilepath").value.length > 0) {
-                        filename = document.getElementById("signcertfilepath").value;
-                    }
-                    if (document.getElementById("signcertfilepassword").value.length > 0) {
-                        password = document.getElementById("signcertfilepassword").value;
-                    }
-                    source = document.getElementById("SourceData").value;
-
-                    // sign type
-                    // certificate information identifier
-                    signType = GetSelectedItemValue("SignType");
-
-                    if ("Attach" == signType) {
-                        // PKCS#7 Attach
-                        signature = CryptoAgent.SignMsgPKCS7_BySoftCert(filename, password, certificatetype, source, selectedAlg, true);
-                    }
-                    else if ("Detach" == signType) {
-                        // PKCS#7 Detach
-                        signature = CryptoAgent.SignMsgPKCS7_BySoftCert(filename, password, certificatetype, source, selectedAlg, false);
-                    }
-                    else {
-                        // PKCS#1
-                        signature = CryptoAgent.SignMsgPKCS1_BySoftCert(filename, password, certificatetype, source, selectedAlg);
-                    }
-                    // Opera浏览器，NPAPI函数执行结果为false时，不能触发异常，需要自己判断返回值。
-                    if (!signature) {
-                        var errorDesc = CryptoAgent.GetLastErrorDesc();
-                        alert(errorDesc);
-                        return;
-                    }
-                    document.getElementById("Signature").value = signature;
-                }
-            } catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
-            }
-        }
-
-        function VerifyPKCS7OnClick() {
-            try {
-
-                var signature = "";
-                var signaturetype = "";
-                var bResult = false;
-
-                signature = document.getElementById("Signature").value;
-                signaturetype = GetSelectedItemValue("signalgorithm");
-                bResult = CryptoAgent.VerifyMsgSignaturePKCS7Attached(signature, signaturetype);
-                if (!bResult) {
-                    var errorDesc = CryptoAgent.GetLastErrorDesc();
-                    alert(errorDesc);
-                    bResult = false;
-                }
-                alert("验签结果：" + bResult);
-                // Opera浏览器，NPAPI函数执行结果为false时，不能触发异常，需要自己判断返回值。
-                if (!signature) {
-                    var errMsg = "";
-                    errMsg = CryptoAgent.GetLastErrorDesc();
-                    alert(errMsg);
-                    return;
-                }
-            } catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
-            }
-        }
-
-        function VerifyPKCS7DetachedOnClick() {
-            try {
-                var signature = "";
-                signaturetype = "";
-                var source = "";
-                var bResult = false;
-
-                signature = document.getElementById("Signature").value;
-                signaturetype = GetSelectedItemValue("signalgorithm");
-                source = document.getElementById("SourceData").value;
-                bResult = CryptoAgent.VerifyMsgSignaturePKCS7Detached(signature, signaturetype, source);
-                if (!bResult) {
-                    var errorDesc = CryptoAgent.GetLastErrorDesc();
-                    alert(errorDesc);
-                    bResult = false;
-                }
-                alert("验签结果：" + bResult);
-
-            } catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
-            }
-        }
-
-        function VerifyPKCS1OnClick() {
-            try {
-                var signatureAlg = "";
-                var bWithZValue = true;
-                var signature = "";
-                var source = "";
-                var base64cert = "";
-                var bResult = false;
-                var hashAlg = "";
-
-                signatureAlg = GetSelectedItemValue("signalgorithm");
-                hashAlg = GetSelectedItemValue("algorithm");
-
-                signature = document.getElementById("Signature").value;
-                source = document.getElementById("SourceData").value;
-                base64cert = document.getElementById("Base64Cert").value;
-                bResult = CryptoAgent.VerifyMsgSignaturePKCS1(signature, signatureAlg, source, hashAlg, base64cert);
-                if (!bResult) {
-                    var errorDesc = CryptoAgent.GetLastErrorDesc();
-                    alert(errorDesc);
-                    bResult = false;
-                }
-                alert("验签结果：" + bResult);
-
-            } catch (e) {
-                var errorDesc = CryptoAgent.GetLastErrorDesc();
-                alert(errorDesc);
-            }
-        }
-
-
-        function GetSelectedItemValue(itemName) {
-            var ele = document.getElementsByName(itemName);
-            for (i = 0; i < ele.length; i++) {
-                if (ele[i].checked) {
-                    return ele[i].value;
-                }
-            }
-        }
+    }
 
 
         function GetSelectedItemIndex(itemName) {
@@ -317,25 +339,35 @@
             }
         }
 
+    function EnableButton(state) {
+        document.getElementById('SelectCertificateButton').disabled = !state;
+        document.getElementById('GetCertInfoButton').disabled = !state;
+        document.getElementById('SignButton').disabled = !state;
+        document.getElementById('VerifyPKCS7Button').disabled = !state;
+        document.getElementById('VerifyPKCS7DetachedButton').disabled = !state;
+        document.getElementById('VerifyPKCS1Button').disabled = !state;
+    }
     </script>
 </head>
-<body onload="javascript:show();javascript:OnLoad();">
+<body onload="javascript:show();javascript:OnLoad();" onbeforeunload="javascript:OnUnLoad()">
+    <a id="CryptoKitExtension">Install CFCA CryptoKit Extension</a>
     <br />
     <table border="0" cellpadding="0" cellspacing="0">
         <tr>
             <td>
-                <h1>消息签名与验签(hncx)</h1>
-            </td>
-        </tr>
-
-        <tr>
-            <td height="30">
-                <input type="radio" name="Certificate" checked="checked" onclick="javascript:show();" />从windows证书库中选择签名证书
-                <input type="radio" name="Certificate" onclick="javascript:show();" />使用指定的软证书签名
+                <h1>
+                    消息签名与验签（演示版）
+                </h1>
             </td>
         </tr>
     </table>
     <br />
+    <tr>
+        <td height="30">
+            <input type="radio" name="Certificate" checked="checked" onclick="javascript:show();" />从windows证书库中选择签名证书
+            <input type="radio" name="Certificate" onclick="javascript:show();" />使用指定的软证书签名
+        </td>
+    </tr>
     <tr>
         <td colspan="2">
             <table id="no1" border="0" cellpadding="0" cellspacing="0" width="100%">
@@ -371,7 +403,7 @@
                 </tr>
                 <tr>
                     <td height="30">
-                        SM2 CSP列表：
+                        CSP列表：
                     </td>
                 </tr>
                 <tr>
@@ -381,8 +413,8 @@
                 </tr>
                 <tr>
                     <td height="30">
-                        <input type="button" name="SelectCertificateButton" value="Select certificate [选择证书]"
-                               onclick="SelectCertificateOnClick()" />
+                        <input type="button" name="SelectCertificateButton" id="SelectCertificateButton" disabled=true value="Select certificate [选择证书]"
+                               onclick="OnClickSelectCertificate()" />
                     </td>
                 </tr>
                 <tr>
@@ -395,11 +427,13 @@
                         <input type="text" id="SelectCertResult" style="width: 650px" />
                     </td>
                 </tr>
-                <td height="30">
-                    <h3>
-                        获取选定证书的信息
-                    </h3>
-                </td>
+                <tr>
+                    <td height="30">
+                        <h3>
+                            获取选定证书的信息
+                        </h3>
+                    </td>
+                </tr>
                 <tr>
                     <td height="30">
                         信息类型标识：
@@ -418,7 +452,8 @@
                 </tr>
                 <tr>
                     <td height="30">
-                        <input type="button" name="GetCertInfoButton" value="Get Cert Information [获取证书信息]" onclick="GetCertInfoOnClick()" />
+                        <input type="button" name="GetCertInfoButton" id="GetCertInfoButton" disabled=true value="Get Cert Information [获取证书信息]"
+                               onclick="OnClickGetCertInfo()" />
                     </td>
                 </tr>
                 <tr>
@@ -428,7 +463,8 @@
                 </tr>
                 <tr>
                     <td>
-                        <input type="text" id="CertInfoContent" style="width: 650px" />
+                        <textarea id="CertInfoContent" rows="8" style="width: 650px">
+                        </textarea>
                     </td>
                 </tr>
             </table>
@@ -441,8 +477,6 @@
                     <td height="30">
                         用于签名的软证书路径:
                     </td>
-                </tr>
-                <tr>
                 </tr>
                 <tr>
                     <td>
@@ -482,7 +516,6 @@
 </textarea>
     </label>
     <br />
-    <br />
     <label>
         <td>
             签名类型：
@@ -497,7 +530,7 @@
     <br />
     <label>
         <td>
-            哈希算法(仅对RSA算法有效，SM2默认使用SM3哈希算法)：
+            哈希算法：
         </td>
     </label>
     <td>
@@ -508,7 +541,7 @@
     <br />
     <label>
         <td>
-            <input type="button" name="SignButton" value="Sign[签名]" onclick="SignOnClick()" />
+            <input type="button" name="SignButton" id="SignButton" disabled=true value="Sign[签名]" onclick="OnClickSign()" />
         </td>
     </label>
     <br />
@@ -539,12 +572,12 @@
     <br />
     <label>
         <td>
-            <input type="button" name="VerifyPKCS7Button" value="验证PKCS#7带原文签名" onclick="VerifyPKCS7OnClick()" />
+            <input type="button" name="VerifyPKCS7Button" id="VerifyPKCS7Button" disabled="true" value="验证PKCS#7带原文签名" onclick="OnClickVerifyPKCS7()" />
         </td>
     </label>
     <label>
         <td>
-            <input type="button" name="VerifyPKCS7DetachedButton" value="验证PKCS#7不带原文签名" onclick="VerifyPKCS7DetachedOnClick()" />
+            <input type="button" name="VerifyPKCS7DetachedButton" id="VerifyPKCS7DetachedButton" disabled="true" value="验证PKCS#7不带原文签名" onclick="OnClickVerifyPKCS7Detached()" />
         </td>
     </label>
     <br />
@@ -558,7 +591,7 @@
     <br />
     <label>
         <td>
-            <input type="button" name="VerifyPKCS1Button" value="验证PKCS#1签名" onclick="VerifyPKCS1OnClick()" />
+            <input type="button" name="VerifyPKCS1Button" id="VerifyPKCS1Button" disabled="true" value="验证PKCS#1签名" onclick="VerifyPKCS1OnClick()" />
         </td>
     </label>
 </body>
